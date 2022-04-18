@@ -41,3 +41,8 @@ Route::get('/post/isliked/{id}', 'PostController@isliked')->name('post.isliked')
 Route::post('/post/like/{id}', 'PostController@like')->name('post.like');
 Route::post('/post/dislike/{id}', 'PostController@dislike')->name('post.dislike');
 
+Route::get('/post/likenames/{id}', 'PostController@likenames')->name('post.likenames');
+
+Route::resource('comments' , 'CommentController');
+
+

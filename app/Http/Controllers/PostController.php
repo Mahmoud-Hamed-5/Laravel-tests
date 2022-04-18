@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Cviebrock\EloquentSluggable\Services\SlugService;
+
 
 class PostController extends Controller
 {
@@ -19,14 +21,14 @@ class PostController extends Controller
 
     public function index()
     {
-        $posts = Post::all();
+        $posts = Post::orderBy('created_at' , 'DESC')->get();
         return view('posts.index')->with('posts',$posts);
     }
 
     public function trashedPosts()
     {
-        $posts = Post::onlyTrashed()->get();
-        return view('posts.trashed',$posts);
+        $trashed_posts = Post::onlyTrashed()->where('user_id',Auth::id())->get();
+        return view('posts.trashed')->with('trashed_posts',$trashed_posts);
     }
 
     public function create()
@@ -39,20 +41,32 @@ class PostController extends Controller
         $this->validate($request,[
             'title' => 'required',
             'content' => 'required',
-            'photo' => 'required|image'
+            //'photo' => 'required|image'
         ]);
 
-        $photo = $request->photo;
-        $newPhoto = time().$photo->getClientOriginalName();
-        $photo->move('uploads/posts',$newPhoto);
+       // $photo = $request->photo;
+       // $newPhoto = time().$photo->getClientOriginalName();
+       // $photo->move('uploads/posts',$newPhoto);
+
+        $newPhoto = null;
+        if($request->has('photo'))
+        {
+            $photo = $request->photo;
+            $newPhoto = time().$photo->getClientOriginalName();
+            $photo->move('uploads/posts',$newPhoto);
+            //$post->photo = 'uploads/posts/'.$newPhoto;
+        }
+
+        $photoStore = $newPhoto == null ? null : 'uploads/posts/'.$newPhoto;
 
         $post = Post::create([
             'user_id' => Auth::id(),
 
             'title' => $request->title,
             'content' => $request->content,
-            'photo' => 'uploads/posts/'.$newPhoto,
-            'slug' => Str::slug($request->title)
+            'photo' => $photoStore,
+            //'slug' => Str::slug($request->title,'-','en')
+             'slug' => SlugService::createSlug('App\Models\Post', 'slug', $request->title)
 
         ]);
         return redirect()->back();
@@ -61,12 +75,16 @@ class PostController extends Controller
     public function show($slug)
     {
         $post = Post::where('slug',$slug)->first();
-        return view('posts.show',$post);
+        return view('posts.show')->with('post', $post);
     }
 
-    public function edit($id)
+    public function edit($post_id)
     {
-        $post = Post::find($id);
+       // $post = Post::find($id);
+        $post = Post::where('id',$post_id)->where('user_id',Auth::id())->first();
+        if ($post === null) {
+            return redirect()->back();
+        }
         return view('posts.edit',$post);
     }
 
@@ -88,28 +106,41 @@ class PostController extends Controller
         }
 
         $post->title = $request->title;
+        $post->title = Str::slug($request->title);
         $post->content = $request->content;
         $post->save;
 
         return redirect()->back();
     }
 
-    public function destroy($id)
+    public function destroy($post_id)
     {
-        $post = Post::find($id);
+       // $post = Post::find($post_id);
+        $post = Post::where('id',$post_id)->where('user_id',Auth::id())->first();
+        if ($post === null) {
+            return redirect()->back();
+        }
+
         $post->delete();
+
         return redirect()->back();
     }
 
-    public function hdelete($id)
+    public function hdelete($post_id)
     {
-        Post::withTrashed()->where('id' , $id)->first()->forceDelete();
+        Post::withTrashed()->where('id' , $post_id)
+            ->where('user_id',Auth::id())
+                ->first()->forceDelete();
+
         return redirect()->back();
     }
 
-    public function restore($id)
+    public function restore($post_id)
     {
-        Post::withoutTrashed()->where('id' , $id)->first()->restore();
+        Post::withTrashed()->where('id' , $post_id)
+            ->where('user_id',Auth::id())
+                ->first()->restore();
+
         return redirect()->back();
     }
 
@@ -161,4 +192,15 @@ class PostController extends Controller
        return $l;
     }
 
+    public function likenames($post_id)
+    {
+
+        $names = array();
+        $users = DB::table('likes')->where('post_id', $post_id)->pluck('user_id');
+        foreach ($users as $user_id ) {
+            $user_name = DB::table('users')->where('id', $user_id)->value('name');
+            array_push($names,$user_name);
+        }
+        return $names ;
+    }
 }

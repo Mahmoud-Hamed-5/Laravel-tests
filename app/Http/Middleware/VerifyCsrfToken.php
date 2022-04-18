@@ -13,6 +13,7 @@ class VerifyCsrfToken extends Middleware
      */
     protected $except = [
         '/post/like/*',
-        '/post/dislike/*'
+        '/post/dislike/*',
+        '/post/likenames/*'
     ];
 }
